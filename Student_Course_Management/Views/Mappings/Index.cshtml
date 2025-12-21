@@ -1,0 +1,287 @@
+﻿
+ @{
+    ViewBag.Title = "Course Mapping";
+}
+ <link rel="stylesheet" href="https:code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css">
+
+<style>
+    /* Force visibility and layering */
+    .ui-autocomplete {
+        z-index: 9999 !important;
+        display: block !important;
+        background-color: #fff !important;
+        border: 1px solid #ccc !important;
+        cursor: pointer;
+    }
+    /* Ensure the list items are visible */
+    .ui-menu-item {
+        background-color: white;
+        color: black;
+        padding: 5px;
+    }
+    /* Highlight the item when hovering */
+    .ui-state-active {
+        background-color: #007bff !important;
+        color: white !important;
+    }
+</style>
+ <h2>Course Mapping</h2>
+
+<!-- Buttons -->
+<button class="btn btn-primary mb-2" data-bs-toggle="modal" data-bs-target="#courseModal">Add Course</button>
+<button class="btn btn-success mb-2" data-bs-toggle="modal" data-bs-target="#mapModal">Map Course</button>
+
+<!-- Grid -->
+<table class="table table-bordered table-striped">
+    <thead>
+        <tr>
+            <th>Student Name</th>
+            <th>Course Name</th>
+            <th>Course Code</th>
+            <th>Action</th>
+        </tr>
+    </thead>
+    <tbody id="grid">
+        <!-- Dynamic rows -->
+    </tbody>
+</table>
+<a asp-controller="Students" asp-action="Index" class="btn btn-primary">Go To Students</a>
+
+<!-- Add Course Modal -->
+<div class="modal fade" id="courseModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Add Course</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="text" id="cname" class="form-control mb-2" placeholder="Course Name" />
+                <input type="text" id="ccode" class="form-control mb-2" placeholder="Course Code" />
+                <span id="cmsg" class="text-danger"></span>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-success" onclick="saveCourse()">Save</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Map Course Modal -->
+<div class="modal fade" id="mapModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Map Course to Student</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="text" id="student" class="form-control mb-2" placeholder="Select Student" />
+                <input type="hidden" id="sid" />
+                <input type="text" id="course" class="form-control mb-2" placeholder="Select Course" />
+                <input type="hidden" id="cid" />
+                <span id="mmsg" class="text-danger"></span>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-success" onclick="mapCourse()">Save</button>
+                <button class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+
+                $(document).ready(function () {
+
+            // STUDENT AUTOCOMPLETE
+            $("#student").autocomplete({
+                source: "/Mappings/GetStudents",
+                minLength: 1,
+                appendTo: "#mapModal", 
+                select: function (event, ui) {
+                    $("#student").val(ui.item.label);
+                    $("#sid").val(ui.item.id);     // store hidden student ID
+
+                    $(this).autocomplete("close"); //  force close
+                    $(".ui-autocomplete").hide();  //  extra safety
+
+                    $("#course").focus();          // move to course box
+                    return false;
+                },
+                change: function () {
+                    if (!$("#sid").val()) {
+                        $("#student").val("");
+                    }
+                }
+            });
+
+            // COURSE AUTOCOMPLETE
+            $("#course").autocomplete({
+                source: "/Mappings/GetCourses",
+                minLength: 1,
+                appendTo: "#mapModal", //  IMPORTANT
+                select: function (event, ui) {
+                    $("#course").val(ui.item.label);
+                    $("#cid").val(ui.item.id);     // store hidden course ID
+
+                    $(this).autocomplete("close"); //  force close
+                    $(".ui-autocomplete").hide();  //  extra safety
+
+                    return false;
+                },
+                change: function () {
+                    if (!$("#cid").val()) {
+                        $("#course").val("");
+                    }
+                }
+            });
+
+            // EXTRA: Hide autocomplete when modal closes
+            $("#mapModal").on("hidden.bs.modal", function () {
+                $(".ui-autocomplete").hide();
+                $("#student").val("");
+                $("#course").val("");
+                $("#sid").val("");
+                $("#cid").val("");
+            });
+
+        });
+
+
+        // SAVE COURSE 
+        function saveCourse() {
+            //alert("SaveCourse function called");
+
+            var name = $("#cname").val();
+            var code = $("#ccode").val();
+            $("#cmsg").text("");
+
+            if (name === "" || code === "") {
+                $("#cmsg").text("All fields are required");
+                return;
+            }
+
+            $.ajax({
+                url: "/Mappings/CreateCourse",
+                type: "POST",
+                data: {
+                    courseName: name,
+                    courseCode: code
+                },
+                success: function (res) {
+                    if (res.success) {
+                        $("#cmsg").removeClass("text-danger")
+                                  .addClass("text-success")
+                                  .text(res.message);
+
+                        $("#cname").val("");
+                        $("#ccode").val("");
+
+                        // refresh course autocomplete source
+                        $("#course").autocomplete("option", "source", "/Mappings/GetCourses");
+                    } else {
+                        $("#cmsg").text(res.message);
+                    }
+                },
+                error: function () {
+                    $("#cmsg").text("Server error");
+                }
+            });
+        }
+
+        //  MAP COURSE 
+        window.mapCourse = function () {
+
+            let sid = parseInt($("#sid").val());
+            let cid = parseInt($("#cid").val());
+
+            if (!sid || !cid) {
+                $("#mmsg").text("Please select both student and course");
+                return;
+            }
+
+            fetch("/Mappings/MapCourse", {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: `studentId=${sid}&courseId=${cid}` // template literal fixed
+            })
+            .then(r => r.json())
+            .then(d => {
+                if (d.success) {
+                    $("#mmsg").text("");
+                    loadGrid(); // reload mapping grid
+                    bootstrap.Modal.getInstance(
+                        document.getElementById("mapModal")
+                    ).hide();
+                } else {
+                    $("#mmsg").text(d.message);
+                }
+            });
+        };
+
+        //         // Load Mappings Grid
+        function loadGrid() {
+            fetch('/Mappings/GetMappings')
+                .then(r => r.json())
+                .then(d => {
+                    let html = '';
+                    d.forEach(x => {
+                        html += `<tr>
+                            <td>${x.studentName}</td>
+                            <td>${x.courseName}</td>
+                            <td>${x.courseCode}</td>
+                            <td>
+                                <button class="btn btn-danger btn-sm" title="Delete this mapping" area-label="Delete Mapping" onclick="deleteMapping(${x.mappingId})">
+                                    Delete
+                                </button>
+                            </td>
+                        </tr>`;
+                    });
+                            document.getElementById("grid").innerHTML = html;
+                })
+                .catch(err => console.error("Error loading grid:", err));
+        }
+
+        //  Delete Mapping (Soft Delete) 
+        function deleteMapping(id) {
+            if(!confirm("Are you sure you want to delete this mapping?")) return;
+
+            fetch('/Mappings/Delete', {
+                method: 'POST',
+                headers: {'Content-Type':'application/x-www-form-urlencoded'},
+                body: `id=${id}`
+            })
+            .then(r => r.json())
+            .then(res => {
+                if(res.success){
+                    loadGrid(); // Refresh grid after delete
+                } else {
+                    alert(res.message || "Delete failed");
+                }
+            })
+            .catch(err => console.error("Error deleting mapping:", err));
+        }
+
+        // Call loadGrid() on page load 
+         {
+            loadGrid();
+        }
+    </script>
+}
+<link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css">
+<style>
+    .ui-autocomplete {
+        /*z-index: 99999 !important;  On top of modal */
+        z-index:1056!important;
+        background: white !important;
+        border: 1px solid #000 !important;
+        display: block !important;
+    }
+</style>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
+
