@@ -4,6 +4,7 @@
     {
         public int CourseId { get; set; }
         public string? CourseName{ get; set; }
+
         public string? CourseCode { get; set; }
         public bool IsActive { get; set; }
         public DateTime CreatedDate { get; set; }

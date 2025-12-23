@@ -14,6 +14,10 @@ namespace Student_Course_Management.Data
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.Entity<SpResult>().HasNoKey();
+
+            modelBuilder.Entity<Course>().HasIndex(c => c.CourseCode).IsUnique();
+
+            modelBuilder.Entity<Course>().Property(c => c.CourseCode).IsRequired();
         }
     }
 }
